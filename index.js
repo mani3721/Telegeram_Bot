@@ -41,11 +41,29 @@ app.post('/send-message', async (req, res) => {
       parse_mode: 'HTML'
     });
 
+    // Handle base64 image
+    let photoData;
+    if (paymentScreenshot.startsWith('data:image')) {
+      // Extract the base64 data from the data URL
+      const base64Data = paymentScreenshot.split(',')[1];
+      photoData = Buffer.from(base64Data, 'base64');
+    } else {
+      photoData = paymentScreenshot;
+    }
+
     // Send the payment screenshot
-    const response = await axios.post(`${TELEGRAM_API_URL}/sendPhoto`, {
-      chat_id: CHAT_ID,
-      photo: paymentScreenshot,
-      caption: 'Payment Screenshot'
+    const formData = new FormData();
+    formData.append('chat_id', CHAT_ID);
+    formData.append('photo', photoData, {
+      filename: 'payment_screenshot.png',
+      contentType: 'image/png'
+    });
+    formData.append('caption', 'Payment Screenshot');
+
+    const response = await axios.post(`${TELEGRAM_API_URL}/sendPhoto`, formData, {
+      headers: {
+        ...formData.getHeaders()
+      }
     });
 
     res.json({ success: true, telegramResponse: response.data });
