@@ -1,9 +1,14 @@
 const express = require('express');
 const axios = require('axios');
+const multer = require('multer');
+const FormData = require('form-data');
 require('dotenv').config();
 
 const app = express();
 app.use(express.json());
+
+// Configure multer for file uploads
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Get configuration from environment variables
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -16,7 +21,7 @@ if (!TELEGRAM_BOT_TOKEN || !CHAT_ID) {
   process.exit(1);
 }
 
-// API endpoint to send payment information
+// API endpoint to send payment information with base64 image
 app.post('/send-message', async (req, res) => {
   const { userId, planType, timestamp, paymentScreenshot } = req.body;
 
@@ -70,6 +75,34 @@ app.post('/send-message', async (req, res) => {
   } catch (error) {
     console.error('Error sending payment information:', error.response?.data || error.message);
     res.status(500).json({ error: 'Failed to send payment information' });
+  }
+});
+
+// New endpoint for direct file upload
+app.post('/upload-photo', upload.single('photo'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const formData = new FormData();
+    formData.append('chat_id', CHAT_ID);
+    formData.append('photo', req.file.buffer, {
+      filename: req.file.originalname,
+      contentType: req.file.mimetype
+    });
+    formData.append('caption', 'Payment Screenshot');
+
+    const response = await axios.post(`${TELEGRAM_API_URL}/sendPhoto`, formData, {
+      headers: {
+        ...formData.getHeaders()
+      }
+    });
+
+    res.json({ success: true, telegramResponse: response.data });
+  } catch (error) {
+    console.error('Error uploading photo:', error.response?.data || error.message);
+    res.status(500).json({ error: 'Failed to upload photo' });
   }
 });
 
